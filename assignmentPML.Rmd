@@ -1,6 +1,4 @@
----
-output: html_document
----
+
 # Prediction Assignment Writeup- Practical Machine Learning 
  *Nadia Adila Muhammad*
  *21 Disember 2016*

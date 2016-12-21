@@ -1,0 +1,145 @@
+---
+title: "Prediction Assignment Writeup- Practical Machine Learning"
+output: html_document
+---
+ 
+ *Nadia Adila Muhammad*
+ *21 Disember 2016*
+
+# Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Data Source
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+# Loading the Dataset
+
+```{r setup, include=FALSE}
+setwd("C:/Users/saya/Desktop/DS/real kuiz/Practical Machine Learning/Week 4/Assignment")
+
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+
+pmlTraining <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+pmlTesting <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+```
+
+# Cleaning the Data
+
+As we can see, the dataset contains many NA values, so in this section we will remove all columns that contains NA and remove features that are not in the testing dataset. We will also remove the first 7 features since they are related to the time-series or are not numeric.Since the testing dataset has no time-dependence, these values are useless and can be disregarded.
+
+```{r}
+#Remove variables that we believe have too many NA values.
+#remove also the 7 unrelevant variables as it not related to time series and numeric
+remoNA <- names(pmlTesting[ , colSums(is.na(pmlTesting)) == 0])[8:59]
+
+# Only use features used in testing cases.
+dataTraining <- pmlTraining[,c(remoNA,"classe")]
+dataTesting <- pmlTesting[,c(remoNA,"problem_id")]
+
+dim(dataTraining); dim(dataTesting);
+```
+
+# Partitioning the Dataset
+
+Follow the guide by coursera, we will split our data into a training data set(60% of total cases) and testing data set (40% of the total cases). This will allow us to estimate the out of sample error of our predictor
+
+```{r}
+set.seed(12345)
+dataTraining2 <- dataTraining
+#convert the classe in datataraining column to numeric so that there will be no problem in create data partition
+dataTraining2$classe <- as.numeric(dataTraining2$classe)
+
+usTrain <- createDataPartition(dataTraining2$classe, p=0.6, list=FALSE)
+training <- dataTraining2[usTrain,]
+testing <- dataTraining2[-usTrain,]
+
+dim(training); dim(testing);
+```
+
+# Partitioning the Dataset
+
+## Building the Decision Tree Model
+Using decison tree, we cannot expect that the accuracy will be high.
+
+```{r}
+modDT <- rpart(classe ~ ., data = training, method="class")
+fancyRpartPlot(modDT)
+```
+
+### Predict the decision tree
+
+```{r}
+set.seed(12345)
+
+predictionDT <- predict(modDT, testing, type = "class")
+confusionMatrix(predictionDT, testing$classe)
+```
+
+## Building the Random Forest Model
+
+Using random forest, the out of sample error should be small. The error will be estimated using the 40% testing sample. We should expect an error estimate of < 3%
+
+```{r}
+set.seed(12345)
+
+#need to convert the training classe to factor first so that randomForest can be run and to avoid fewer unique value
+training$classe <- as.factor(training$classe)
+modRF <- randomForest(classe ~ ., data = training, ntree = 1000, importance=TRUE)
+```
+
+### Plot for Random Forest Model 
+```{r}
+varImpPlot(modRF, )
+```
+
+we can see which variables have higher impact on the prediction.
+
+### Predict Random Forest Model
+
+```{r}
+predictionRFM <- predict(modRF, testing, type = "class")
+confusionMatrix(predictionRFM, testing$classe)
+```
+
+Now lets evaluate this tree on the test data.
+
+```{r}
+tree.pred=predict(modRF,testing,type="class")
+predMatrix = with(testing,table(tree.pred,classe))
+sum(diag(predMatrix))/sum(as.vector(predMatrix)) # error rate
+```
+
+0.99 means we got a very accurate estimate.
+
+# Conclusion
+
+### Predicting on the Testing Data (pml-testing.csv)
+
+### Decision Tree Prediction
+
+```{r}
+predictionDT <- predict(modDT, pmlTesting, type = "class")
+predictionDT
+```
+
+### Random Forest Prediction
+
+```{r}
+predictionRF <- predict(modRF, pmlTesting, type = "class")
+predictionRF
+```
+
+As can be seen from the confusion matrix the Random Forest model is very accurate, about 99%. Because of that we could expect nearly all of the submitted test cases to be correct. It turned out they were all correct.
